@@ -6,18 +6,18 @@ import requests
 import yt_dlp
 from flask import Flask
 
-# 1. خادم ويب وهمي متوافق مع خطة Render المجانية
+# 1. خادم ويب لتشغيل البوت مجاناً على Render دون توقف
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot is running 24/7 across all platforms!"
+    return "Bot is running 24/7!"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
 
-# 2. إعدادات التيليجرام
+# 2. إعدادات تيليجرام
 TOKEN = "8721281999:AAGKgK503OTVhv3BCskoCCGeD18ASngNgtw"
 API_URL = f"https://api.telegram.org/bot{TOKEN}/"
 
@@ -100,17 +100,19 @@ def process_update(update):
         os.makedirs("downloads", exist_ok=True)
         out_template = f"downloads/{chat_id}_{int(time.time())}.%(ext)s"
 
-        # إعدادات متوافقة وشاملة لكافة المنصات والحسابات
         ydl_opts = {
             'outtmpl': out_template,
             'quiet': True,
             'no_warnings': True,
             'noplaylist': True,
-            'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios', 'android']
+                    'player_client': ['android_creator', 'android', 'mweb'],
+                    'player_skip': ['webpage', 'configs']
                 }
+            },
+            'http_headers': {
+                'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 14; US) gzip'
             }
         }
 
@@ -132,23 +134,19 @@ def process_update(update):
                 title = info.get('title', 'Media')
                 downloaded_file = ydl.prepare_filename(info)
 
-            # التحقق من وجود الملف في المسار المتوقع
             if not os.path.exists(downloaded_file):
-                # بحث بديل في المجلد في حال تغيّر الامتداد تلقائياً
-                pattern = f"downloads/{chat_id}_*.*"
-                matched = glob.glob(pattern)
+                matched = glob.glob(f"downloads/{chat_id}_*.*")
                 if matched:
                     downloaded_file = matched[0]
 
             if downloaded_file and os.path.exists(downloaded_file):
                 file_size_mb = os.path.getsize(downloaded_file) / (1024 * 1024)
 
-                # تنبيه حد تيليجرام للبوتات (50MB)
                 if file_size_mb > 49.5:
                     send_message(
                         chat_id,
-                        f"⚠️ حجم الملف ({file_size_mb:.1f} MB) يتجاوز الحد الأقصى المسموح به في تيليجرام للبوتات (50 MB).\n"
-                        "يرجى تجربة اختيار جودة أقل."
+                        f"⚠️ حجم الملف ({file_size_mb:.1f} MB) أكبر من الحد الأقصى المسموح للبوت (50 MB).\n"
+                        "يرجى اختيار جودة أقل."
                     )
                 else:
                     send_message(chat_id, "تم التحميل بنجاح! جاري الإرسال إليك... 📤")
@@ -157,17 +155,18 @@ def process_update(update):
                     else:
                         send_video(chat_id, downloaded_file, title)
             else:
-                send_message(chat_id, "تعذر استخراج الملف. يرجى التأكد من أن الرابط عام ومتاح للجميع.")
+                send_message(chat_id, "تعذر استخراج الملف، يرجى التأكد من أن الرابط متاح للعامة.")
 
         except Exception as e:
             err_msg = str(e)
-            if "Private video" in err_msg or "login" in err_msg.lower():
-                send_message(chat_id, "خطأ: هذا المقطع خاص أو يتطلب تسجيل دخول لمشاهدته.")
+            if "Sign in" in err_msg:
+                send_message(chat_id, "يتطلب هذا الرابط تخطي تحقق أمان خاص بالسيرفر، جرب رابطاً آخر أو مقطعاً من منصة ثانية.")
+            elif "Private video" in err_msg:
+                send_message(chat_id, "خطأ: هذا المقطع خاص.")
             else:
                 send_message(chat_id, f"حدث خطأ أثناء المعالجة: {err_msg[:120]}")
 
         finally:
-            # تنظيف السيرفر وحذف الملفات المؤقتة فور الانتهاء
             for f in glob.glob(f"downloads/{chat_id}_*.*"):
                 try:
                     os.remove(f)

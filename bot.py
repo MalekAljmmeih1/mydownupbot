@@ -1,8 +1,22 @@
 import os
 import time
+import threading
 import requests
 import yt_dlp
+from flask import Flask
 
+# سيرفر ويب وهمي لتشغيل البوت مجاناً على Render دون توقف
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running 24/7!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
+# إعدادات بوت تلجرام
 TOKEN = "8721281999:AAGKgK503OTVhv3BCskoCCGeD18ASngNgtw"
 API_URL = f"https://api.telegram.org/bot{TOKEN}/"
 
@@ -93,7 +107,7 @@ def process_update(update):
         except Exception as e:
             send_message(chat_id, f"حدث خطأ أثناء التنزيل: {e}")
 
-def main():
+def run_bot():
     offset = 0
     print("البوت يعمل بنجاح 24/7...")
     while True:
@@ -108,5 +122,6 @@ def main():
             pass
         time.sleep(1)
 
-if name == 'main':
-    main()
+if __name__ == '__main__':
+    threading.Thread(target=run_bot, daemon=True).start()
+    run_web()
